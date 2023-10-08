@@ -12,26 +12,26 @@ parser = OptionParser()
 
 parser.add_option("-a", "--attribs", action="store", dest="attributes", default="user,version")
 parser.add_option("-d", "--hide-deleted", action="store_false", dest="show_deleted", default=True)
-parser.add_option("-c", "--changeset-attribs", action="store", dest="changeset_attribs")
+parser.add_option("-c", "--changeset-attribs", action="store", dest="changeset_attribs", default=None)
 
 (options, args) = parser.parse_args()
 
 show_attrib = options.attributes.split(',')
 
-show_changeset_attribs=None
+show_changeset_attrib=[]
 if options.changeset_attribs is not None:
-    show_changeset_attribs = options.changeset_attribs.split(',')
+    show_changeset_attrib = options.changeset_attribs.split(',')
     changeset_cache = {}
-    print ("/mn/ FIXME debug show_changeset_attribs=", show_changeset_attribs)
+    print ("/mn/ FIXME debug show_changeset_attrib=", show_changeset_attrib)
     
-def get_changeset_attrib(changeset,tag):
+def get_changeset_attrib(changeset, find_tag):
         if (not changeset_cache.get(changeset)):
             crequest = f"https://www.openstreetmap.org/api/0.6/changeset/{changeset}"
             #print ("/mn/ debug crequest=", crequest)
             cresponse = urllib.request.urlopen(crequest)
             changeset_xml = cresponse.read()
             changeset_cache[changeset] = changeset_xml
-            print (f"/mn/ fetched new changeset_cache[{changeset}]={changeset_xml}")
+            #print (f"/mn/ fetched new changeset_cache[{changeset}]={changeset_xml}")
 
         changeset_root = ET.fromstring(changeset_cache[changeset])
 
@@ -54,8 +54,8 @@ def get_changeset_attrib(changeset,tag):
                 tag_key = tag.get('k')
                 tag_val = tag.get('v')
                 #print (f"changeset k={tag_key} v={tag_val}")
-                if tag_key == 'created_by':
-                    print (f"Found tag {tag_key}={tag_val}, returning")
+                if tag_key == find_tag:
+                    print (f"Found requested tag {tag_key}, returning value {tag_val}")
                     return tag_val
         return None
         
@@ -100,11 +100,14 @@ for key, tag in blame_tag.items():
         if tag['value'] is None:
             continue
         line = []
-    line += [key, tag['value']] + [tag['attrib'][attrib_name] for attrib_name in show_attrib]
 
-    if show_changeset_attribs is not None:
-        get_changeset_attrib(tag['attrib']['changeset'], 'created_by')  # FIXME /mn/ iterate all show_changeset_attribs, not hardcoded
+    if show_changeset_attrib is not None:
+        for find_c_attrib in show_changeset_attrib:
+            #print (f"/mn/ getting {find_c_attrib}")
+            c_a = get_changeset_attrib(tag['attrib']['changeset'], find_c_attrib)
 
+    line += [key, tag['value']] + [tag['attrib'][attrib_name] for attrib_name in show_attrib] + \
+            [get_changeset_attrib(tag['attrib']['changeset'], c_attrib_name) for c_attrib_name in show_changeset_attrib]
     final.append(line)
 
 if options.show_deleted:
@@ -112,6 +115,6 @@ if options.show_deleted:
 else:
     headers = []
 
-headers += ['key', 'value'] + show_attrib
+headers += ['key', 'value'] + show_attrib + show_changeset_attrib
 
 print(tabulate(final, headers=headers))
