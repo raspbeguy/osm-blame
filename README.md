@@ -41,4 +41,5 @@ About the symbols before each line: `+` means that the tag is still applied, `-`
 ## Options
 
 * `-a LIST`, `--attribs LIST`: `LIST` is a comma-separated list of attributes to show (not including keys and values). Default is `user,version`. Possible attributes: `user`, `version`, `uid`, `changeset`, `timestamp`. Other attributes are possibles but vary from the element type. More informations about attributes on OpenStreetMap API documentation.
+* `-c LIST`, `--changeset-tags LIST`: `LIST` is a comma-separated list of changeset tags to show. Default is none, as it is slower due to more API calls. Common changeset tags: `created_by`, `comment`, `source`, `imagery_used`. Other changeset tags are possible but more rare, see https://wiki.openstreetmap.org/wiki/Changeset#Tags_on_changesets
 * `-d`, `--hide-deleted`: Do not show deleted tags.

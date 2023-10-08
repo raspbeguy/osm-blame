@@ -9,10 +9,27 @@ parser = OptionParser()
 
 parser.add_option("-a", "--attribs", action="store", dest="attributes", default="user,version")
 parser.add_option("-d", "--hide-deleted", action="store_false", dest="show_deleted", default=True)
+parser.add_option("-c", "--changeset-tags", action="store", dest="changeset_tags", default=None)
 
 (options, args) = parser.parse_args()
 
 show_attrib = options.attributes.split(',')
+show_changeset_tag = [] if options.changeset_tags is None else options.changeset_tags.split(',')
+changeset_cache = {}
+
+def get_changeset_tag(changeset, find_tag):
+        if (not changeset_cache.get(changeset)):
+            crequest = "https://www.openstreetmap.org/api/0.6/changeset/{}".format(changeset)
+            cresponse = urllib.request.urlopen(crequest)
+            changeset_cache[changeset] = cresponse.read()
+
+        changeset_root = ET.fromstring(changeset_cache[changeset])
+
+        for cversion in changeset_root:
+            for tag in cversion.findall('tag'):
+                if tag.get('k') == find_tag:
+                    return tag.get('v')
+        return None
 
 item = args[0]
 
@@ -53,7 +70,10 @@ for key, tag in blame_tag.items():
         if tag['value'] is None:
             continue
         line = []
-    line += [key, tag['value']] + [tag['attrib'][attrib_name] for attrib_name in show_attrib]
+
+    line += [key, tag['value']] + [tag['attrib'][attrib_name] for attrib_name in show_attrib] + \
+            [get_changeset_tag(tag['attrib']['changeset'], c_tag_name) for c_tag_name in show_changeset_tag]
+
     final.append(line)
 
 if options.show_deleted:
@@ -61,6 +81,6 @@ if options.show_deleted:
 else:
     headers = []
 
-headers += ['key', 'value'] + show_attrib
+headers += ['key', 'value'] + show_attrib + show_changeset_tag
 
 print(tabulate(final, headers=headers))
