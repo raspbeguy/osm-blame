@@ -2,6 +2,9 @@
 
 import xml.etree.ElementTree as ET
 import urllib.request
+import json
+from pprint import pprint
+
 from tabulate import tabulate
 from optparse import OptionParser
 
@@ -9,10 +12,53 @@ parser = OptionParser()
 
 parser.add_option("-a", "--attribs", action="store", dest="attributes", default="user,version")
 parser.add_option("-d", "--hide-deleted", action="store_false", dest="show_deleted", default=True)
+parser.add_option("-c", "--changeset-attribs", action="store", dest="changeset_attribs")
 
 (options, args) = parser.parse_args()
 
 show_attrib = options.attributes.split(',')
+
+show_changeset_attribs=None
+if options.changeset_attribs is not None:
+    show_changeset_attribs = options.changeset_attribs.split(',')
+    changeset_cache = {}
+    print ("/mn/ FIXME debug show_changeset_attribs=", show_changeset_attribs)
+    
+def get_changeset_attrib(changeset,tag):
+        if (not changeset_cache.get(changeset)):
+            crequest = f"https://www.openstreetmap.org/api/0.6/changeset/{changeset}"
+            #print ("/mn/ debug crequest=", crequest)
+            cresponse = urllib.request.urlopen(crequest)
+            changeset_xml = cresponse.read()
+            changeset_cache[changeset] = changeset_xml
+            print (f"/mn/ fetched new changeset_cache[{changeset}]={changeset_xml}")
+
+        changeset_root = ET.fromstring(changeset_cache[changeset])
+
+#        print ();
+#        print ("dump changeset_root:");
+#        ET.dump(changeset_root)
+#        print (type(changeset_root))
+#        pprint(changeset_root)
+#        json.dump(changeset_root)
+#        print ();
+#        print ("dump history_root:");
+#        ET.dump(history_root)
+#        print ();
+        
+        for cversion in changeset_root:
+#        for cversion in sorted(changeset_root, key=lambda x: int(x.get('version'))):
+#        for cversion in sorted(history_root, key=lambda x: int(x.get('version'))):
+            attrib = dict(cversion.attrib)
+            for tag in cversion.findall('tag'):
+                tag_key = tag.get('k')
+                tag_val = tag.get('v')
+                #print (f"changeset k={tag_key} v={tag_val}")
+                if tag_key == 'created_by':
+                    print (f"Found tag {tag_key}={tag_val}, returning")
+                    return tag_val
+        return None
+        
 
 item = args[0]
 
@@ -45,6 +91,7 @@ for version in sorted(history_root, key=lambda x: int(x.get('version'))):
             ):
             blame_tag[key] = {'value': None, 'attrib': attrib}
 
+
 final = []
 for key, tag in blame_tag.items():
     if options.show_deleted:
@@ -54,6 +101,10 @@ for key, tag in blame_tag.items():
             continue
         line = []
     line += [key, tag['value']] + [tag['attrib'][attrib_name] for attrib_name in show_attrib]
+
+    if show_changeset_attribs is not None:
+        get_changeset_attrib(tag['attrib']['changeset'], 'created_by')  # FIXME /mn/ iterate all show_changeset_attribs, not hardcoded
+
     final.append(line)
 
 if options.show_deleted:
