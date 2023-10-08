@@ -2,9 +2,6 @@
 
 import xml.etree.ElementTree as ET
 import urllib.request
-import json
-from pprint import pprint
-
 from tabulate import tabulate
 from optparse import OptionParser
 
@@ -12,53 +9,27 @@ parser = OptionParser()
 
 parser.add_option("-a", "--attribs", action="store", dest="attributes", default="user,version")
 parser.add_option("-d", "--hide-deleted", action="store_false", dest="show_deleted", default=True)
-parser.add_option("-c", "--changeset-attribs", action="store", dest="changeset_attribs", default=None)
+parser.add_option("-c", "--changeset-tags", action="store", dest="changeset_tags", default=None)
 
 (options, args) = parser.parse_args()
 
 show_attrib = options.attributes.split(',')
+show_changeset_tag = [] if options.changeset_tags is None else options.changeset_tags.split(',')
+changeset_cache = {}
 
-show_changeset_attrib=[]
-if options.changeset_attribs is not None:
-    show_changeset_attrib = options.changeset_attribs.split(',')
-    changeset_cache = {}
-    print ("/mn/ FIXME debug show_changeset_attrib=", show_changeset_attrib)
-    
-def get_changeset_attrib(changeset, find_tag):
+def get_changeset_tag(changeset, find_tag):
         if (not changeset_cache.get(changeset)):
-            crequest = f"https://www.openstreetmap.org/api/0.6/changeset/{changeset}"
-            #print ("/mn/ debug crequest=", crequest)
+            crequest = "https://www.openstreetmap.org/api/0.6/changeset/{}".format(changeset)
             cresponse = urllib.request.urlopen(crequest)
-            changeset_xml = cresponse.read()
-            changeset_cache[changeset] = changeset_xml
-            #print (f"/mn/ fetched new changeset_cache[{changeset}]={changeset_xml}")
+            changeset_cache[changeset] = cresponse.read()
 
         changeset_root = ET.fromstring(changeset_cache[changeset])
 
-#        print ();
-#        print ("dump changeset_root:");
-#        ET.dump(changeset_root)
-#        print (type(changeset_root))
-#        pprint(changeset_root)
-#        json.dump(changeset_root)
-#        print ();
-#        print ("dump history_root:");
-#        ET.dump(history_root)
-#        print ();
-        
         for cversion in changeset_root:
-#        for cversion in sorted(changeset_root, key=lambda x: int(x.get('version'))):
-#        for cversion in sorted(history_root, key=lambda x: int(x.get('version'))):
-            attrib = dict(cversion.attrib)
             for tag in cversion.findall('tag'):
-                tag_key = tag.get('k')
-                tag_val = tag.get('v')
-                #print (f"changeset k={tag_key} v={tag_val}")
-                if tag_key == find_tag:
-                    print (f"Found requested tag {tag_key}, returning value {tag_val}")
-                    return tag_val
+                if tag.get('k') == find_tag:
+                    return tag.get('v')
         return None
-        
 
 item = args[0]
 
@@ -91,7 +62,6 @@ for version in sorted(history_root, key=lambda x: int(x.get('version'))):
             ):
             blame_tag[key] = {'value': None, 'attrib': attrib}
 
-
 final = []
 for key, tag in blame_tag.items():
     if options.show_deleted:
@@ -101,13 +71,9 @@ for key, tag in blame_tag.items():
             continue
         line = []
 
-    if show_changeset_attrib is not None:
-        for find_c_attrib in show_changeset_attrib:
-            #print (f"/mn/ getting {find_c_attrib}")
-            c_a = get_changeset_attrib(tag['attrib']['changeset'], find_c_attrib)
-
     line += [key, tag['value']] + [tag['attrib'][attrib_name] for attrib_name in show_attrib] + \
-            [get_changeset_attrib(tag['attrib']['changeset'], c_attrib_name) for c_attrib_name in show_changeset_attrib]
+            [get_changeset_tag(tag['attrib']['changeset'], c_tag_name) for c_tag_name in show_changeset_tag]
+
     final.append(line)
 
 if options.show_deleted:
@@ -115,6 +81,6 @@ if options.show_deleted:
 else:
     headers = []
 
-headers += ['key', 'value'] + show_attrib + show_changeset_attrib
+headers += ['key', 'value'] + show_attrib + show_changeset_tag
 
 print(tabulate(final, headers=headers))
